@@ -18,6 +18,7 @@ jobs:
   terraform-plan:
     name: Terraform Plan
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     defaults:
       run:
@@ -50,7 +51,7 @@ jobs:
         run: terraform validate
 
       - name: Terraform Plan
-        run: terraform plan -input=false -out=tfplan
+        run: terraform plan -lock-timeout=300s -input=false -out=tfplan
 
       - name: Upload Plan Artifact
         uses: actions/upload-artifact@v4
