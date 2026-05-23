@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
     inputs:
       environment:
-        description: 'Select Terraform Environment'
+        description: 'Select Environment'
         required: true
         default: dev
         type: choice
@@ -26,15 +26,55 @@ env:
   TF_VERSION: 1.9.5
 
 jobs:
+
+  detect-environment:
+    name: Detect Changed Environment
+    runs-on: ubuntu-latest
+
+    outputs:
+      environments: ${{ steps.filter.outputs.changes }}
+
+    steps:
+
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Detect Changed Environment
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            dev:
+              - 'environments/dev/**'
+
+            test:
+              - 'environments/test/**'
+
+            prod:
+              - 'environments/prod/**'
+
   terraform:
-    name: Terraform-${{ github.event.inputs.environment || 'dev' }}
+    name: Terraform-${{ matrix.environment }}
+
+    needs: detect-environment
 
     runs-on: self-hosted
 
-    timeout-minutes: 30
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      contains(needs.detect-environment.outputs.environments, matrix.environment)
+
+    strategy:
+      fail-fast: false
+
+      matrix:
+        environment:
+          - dev
+          - test
+          - prod
 
     concurrency:
-      group: terraform-${{ github.event.inputs.environment || 'dev' }}
+      group: terraform-${{ matrix.environment }}
       cancel-in-progress: true
 
     permissions:
@@ -43,18 +83,9 @@ jobs:
     defaults:
       run:
         shell: bash
-        working-directory: ./environments/${{ github.event.inputs.environment || 'dev' }}
+        working-directory: ./environments/${{ matrix.environment }}
 
     steps:
-
-      - name: Validate Environment Selection
-        run: |
-          ENV="${{ github.event.inputs.environment || 'dev' }}"
-
-          if [[ "$ENV" != "dev" ]]; then
-            echo "ERROR: Only 'dev' environment is allowed in CI workflow."
-            exit 1
-          fi
 
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -94,6 +125,6 @@ jobs:
       - name: Upload Terraform Plan
         uses: actions/upload-artifact@v4
         with:
-          name: terraform-plan-${{ github.event.inputs.environment || 'dev' }}
-          path: environments/${{ github.event.inputs.environment || 'dev' }}/tfplan
+          name: terraform-plan-${{ matrix.environment }}
+          path: environments/${{ matrix.environment }}/tfplan
           retention-days: 7
