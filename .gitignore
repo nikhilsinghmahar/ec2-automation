@@ -7,7 +7,7 @@ crash.log
 # Sensitive files
 *.pem
 *.key
-terraform.tfvars
+#terraform.tfvars
 
 # Mac
 .DS_Store
