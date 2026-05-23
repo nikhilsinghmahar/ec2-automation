@@ -7,10 +7,6 @@ on:
 
   workflow_dispatch:
 
-concurrency:
-  group: terraform-${{ matrix.environment }}
-  cancel-in-progress: true
-
 env:
   AWS_REGION: us-west-2
   TF_VERSION: 1.9.5
@@ -31,6 +27,10 @@ jobs:
           - dev
           - test
           - prod
+
+    concurrency:
+      group: terraform-${{ matrix.environment }}
+      cancel-in-progress: true
 
     permissions:
       contents: read
