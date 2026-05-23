@@ -1,0 +1,203 @@
+name: Terraform CD Pipeline
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Select Terraform Environment'
+        required: true
+        type: choice
+        default: dev
+        options:
+          - dev
+          - test
+          - prod
+
+      skip_fmt:
+        description: 'Skip Terraform Format Check'
+        required: true
+        type: choice
+        default: false
+        options:
+          - true
+          - false
+
+      auto_approve:
+        description: 'Auto Approve Terraform Apply'
+        required: true
+        type: choice
+        default: true
+        options:
+          - true
+          - false
+
+      apply_flags:
+        description: 'Optional Terraform Apply Flags'
+        required: false
+        default: ''
+
+      force_unlock:
+        description: 'Force Unlock Terraform State'
+        required: true
+        type: choice
+        default: false
+        options:
+          - true
+          - false
+
+      lock_id:
+        description: 'Terraform Lock ID'
+        required: false
+        default: ''
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-west-2
+  TF_VERSION: 1.9.5
+
+jobs:
+  terraform:
+    name: Terraform-Apply-${{ github.event.inputs.environment }}
+
+    runs-on: self-hosted
+
+    timeout-minutes: 30
+
+    concurrency:
+      group: terraform-apply-${{ github.event.inputs.environment }}
+      cancel-in-progress: false
+
+    environment:
+      name: ${{ github.event.inputs.environment }}
+
+    env:
+      ENVIRONMENT: ${{ github.event.inputs.environment }}
+      TF_WORKING_DIR: ./environments/${{ github.event.inputs.environment }}
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # OPTIONAL:
+      # Uncomment if using private Terraform modules
+
+      # - name: Configure GitHub PAT for Private Modules
+      #   run: |
+      #     echo "machine github.com login $GITHUB_ACTOR password $GITHUB_PAT" > ~/.netrc
+      #
+      #     git config --global url."https://github.com/".insteadOf git@github.com:
+      #     git config --global url."https://github.com/".insteadOf ssh://git@github.com/
+      #     git config --global url."https://github.com/".insteadOf https://github.com/
+      #   env:
+      #     GITHUB_ACTOR: ${{ github.actor }}
+      #     GITHUB_PAT: ${{ secrets.MODULE_GITHUB_PAT }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      # ------------------------------------------------
+      # AWS AUTHENTICATION
+      # ------------------------------------------------
+
+      # OPTION 1 -> OIDC ROLE AUTH (Recommended)
+
+      # - name: Set AWS Role
+      #   run: |
+      #     if [ "${ENVIRONMENT}" == "prod" ]; then
+      #       echo "AWS_ROLE_ARN=arn:aws:iam::<PROD_ACCOUNT_ID>:role/github-prod-role" >> $GITHUB_ENV
+      #     else
+      #       echo "AWS_ROLE_ARN=arn:aws:iam::<NONPROD_ACCOUNT_ID>:role/github-nonprod-role" >> $GITHUB_ENV
+      #     fi
+
+      # - name: Configure AWS Credentials (OIDC)
+      #   uses: aws-actions/configure-aws-credentials@v4
+      #   with:
+      #     role-to-assume: ${{ env.AWS_ROLE_ARN }}
+      #     aws-region: ${{ env.AWS_REGION }}
+
+      # OPTION 2 -> ACCESS KEY AUTH (Current Setup)
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # ------------------------------------------------
+      # TERRAFORM COMMANDS
+      # ------------------------------------------------
+
+      - name: Terraform Init
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          terraform init -upgrade -input=false
+
+      - name: Terraform Validate
+        if: ${{ github.event.inputs.skip_fmt == 'false' }}
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          terraform validate
+
+      - name: Terraform Format Check
+        if: ${{ github.event.inputs.skip_fmt == 'false' }}
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          terraform fmt -check -recursive
+
+      - name: Terraform Force Unlock
+        if: ${{ github.event.inputs.force_unlock == 'true' }}
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          if [ -z "${{ github.event.inputs.lock_id }}" ]; then
+            echo "ERROR: lock_id is required when force_unlock=true"
+            exit 1
+          fi
+
+          echo "Unlocking Terraform State..."
+          terraform force-unlock -force ${{ github.event.inputs.lock_id }}
+
+      - name: Terraform Plan
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          terraform plan \
+            -input=false \
+            -lock=true \
+            -lock-timeout=300s \
+            ${{ github.event.inputs.apply_flags }} \
+            -out=tfplan
+
+      - name: Upload Terraform Plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-apply-plan-${{ env.ENVIRONMENT }}
+          path: ${{ env.TF_WORKING_DIR }}/tfplan
+          retention-days: 7
+
+      - name: Terraform Apply
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          if [ "${{ github.event.inputs.auto_approve }}" == "true" ]; then
+
+            terraform apply \
+              -input=false \
+              -lock=true \
+              -lock-timeout=300s \
+              --auto-approve \
+              tfplan
+
+          else
+
+            terraform apply tfplan
+
+          fi
