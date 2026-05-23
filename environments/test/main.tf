@@ -100,36 +100,36 @@ module "kms" {
 
 # EC2 MODULE
 
-module "ec2" {
+# module "ec2" {
 
-  source = "../../modules/ec2-instance"
+#   source = "../../modules/ec2-instance"
 
-  instance_name = var.instance_name
-  environment   = var.environment
-  ami_id        = var.ami_id
-  instance_type = var.instance_type
+#   instance_name = var.instance_name
+#   environment   = var.environment
+#   ami_id        = var.ami_id
+#   instance_type = var.instance_type
 
-  # NOW TAKING SUBNET FROM VPC MODULE
-  subnet_id = module.vpc.private_subnets[0]
+#   # NOW TAKING SUBNET FROM VPC MODULE
+#   subnet_id = module.vpc.private_subnets[0]
 
-  cloudwatch_log_group_name = module.monitoring.log_group_name
+#   cloudwatch_log_group_name = module.monitoring.log_group_name
 
-  security_group_ids = [
-    module.security_group.security_group_id
-  ]
-  kms_key_id          = module.kms.kms_key_id
-  key_name            = var.key_name
-  instance_count      = var.instance_count
-  enable_encryption   = var.enable_encryption
-  associate_public_ip = var.associate_public_ip
+#   security_group_ids = [
+#     module.security_group.security_group_id
+#   ]
+#   kms_key_id          = module.kms.kms_key_id
+#   key_name            = var.key_name
+#   instance_count      = var.instance_count
+#   enable_encryption   = var.enable_encryption
+#   associate_public_ip = var.associate_public_ip
 
-  iam_instance_profile = module.iam_profile.instance_profile_name
+#   iam_instance_profile = module.iam_profile.instance_profile_name
 
-  user_data_file   = var.user_data_file
-  root_volume_size = var.root_volume_size
-  volume_type      = var.volume_type
+#   user_data_file   = var.user_data_file
+#   root_volume_size = var.root_volume_size
+#   volume_type      = var.volume_type
 
-  common_tags = local.common_tags
+#   common_tags = local.common_tags
 
-  additional_ebs_volumes = var.additional_ebs_volumes
-}
+#   additional_ebs_volumes = var.additional_ebs_volumes
+# }
