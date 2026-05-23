@@ -16,7 +16,6 @@ env:
   TF_VERSION: 1.9.5
 
 jobs:
-
   terraform:
     name: Terraform-${{ matrix.environment }}
 
@@ -33,12 +32,13 @@ jobs:
           - test
           - prod
 
-    defaults:
-      run:
-        working-directory: ./environments/${{ matrix.environment }}
-
     permissions:
       contents: read
+
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./environments/${{ matrix.environment }}
 
     steps:
 
@@ -57,25 +57,23 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Verify Environment Files
-        run: |
-          pwd
-          ls -la
-
       - name: Terraform Init
-        run: terraform init -input=false
+        run: |
+          terraform init -input=false
 
       - name: Terraform Format Check
-        run: terraform fmt -check -recursive
+        run: |
+          terraform fmt -check -recursive
 
       - name: Terraform Validate
-        run: terraform validate
+        run: |
+          terraform validate
 
       - name: Terraform Plan
         run: |
           terraform plan \
-            -var-file="terraform.tfvars" \
             -input=false \
+            -lock=true \
             -lock-timeout=300s \
             -out=tfplan
 
@@ -84,3 +82,4 @@ jobs:
         with:
           name: terraform-plan-${{ matrix.environment }}
           path: environments/${{ matrix.environment }}/tfplan
+          retention-days: 7
