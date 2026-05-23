@@ -53,7 +53,7 @@ jobs:
         run: terraform validate
 
       - name: Terraform Plan
-        run: terraform plan -lock-timeout=300s -input=false -out=tfplan
+        run: terraform plan -lock-timeout=300s 
 
       - name: Upload Plan Artifact
         uses: actions/upload-artifact@v4
