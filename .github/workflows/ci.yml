@@ -47,6 +47,15 @@ jobs:
 
     steps:
 
+      - name: Validate Environment Selection
+        run: |
+          ENV="${{ github.event.inputs.environment || 'dev' }}"
+
+          if [[ "$ENV" != "dev" ]]; then
+            echo "ERROR: Only 'dev' environment is allowed in CI workflow."
+            exit 1
+          fi
+
       - name: Checkout Repository
         uses: actions/checkout@v4
 
