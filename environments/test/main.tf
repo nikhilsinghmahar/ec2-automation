@@ -11,18 +11,18 @@
 
 module "vpc" {
 
-  source  = "terraform-aws-modules/vpc/aws"
-  version = "5.8.1"
-  name = "${var.environment}-vpc"
-  cidr = var.vpc_cidr
-  azs = var.availability_zones
-  public_subnets  = var.public_subnet_cidrs
-  private_subnets = var.private_subnet_cidrs
-  enable_nat_gateway = true
-  single_nat_gateway = true
+  source               = "terraform-aws-modules/vpc/aws"
+  version              = "5.8.1"
+  name                 = "${var.environment}-vpc"
+  cidr                 = var.vpc_cidr
+  azs                  = var.availability_zones
+  public_subnets       = var.public_subnet_cidrs
+  private_subnets      = var.private_subnet_cidrs
+  enable_nat_gateway   = true
+  single_nat_gateway   = true
   enable_dns_hostnames = true
-  enable_dns_support = true
-  tags = local.common_tags
+  enable_dns_support   = true
+  tags                 = local.common_tags
 
   public_subnet_tags = {
     Name = "${var.environment}-public-subnet"
@@ -54,7 +54,7 @@ module "iam_profile" {
 
   source = "../../modules/iam-profile"
 
-  role_name    = var.role_name
+  role_name = var.role_name
 
   profile_name = var.profile_name
 
@@ -117,7 +117,7 @@ module "ec2" {
   security_group_ids = [
     module.security_group.security_group_id
   ]
-  kms_key_id = module.kms.kms_key_id
+  kms_key_id          = module.kms.kms_key_id
   key_name            = var.key_name
   instance_count      = var.instance_count
   enable_encryption   = var.enable_encryption
