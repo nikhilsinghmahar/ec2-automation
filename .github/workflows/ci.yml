@@ -1,4 +1,4 @@
-name: Terraform Plan
+name: Terraform CI
 
 on:
   pull_request:
@@ -9,15 +9,15 @@ on:
 
 concurrency:
   group: terraform-dev
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 env:
   AWS_REGION: us-west-2
+  TF_VERSION: 1.9.5
 
 jobs:
   terraform-plan:
     name: Terraform Plan
-
     runs-on: self-hosted
 
     timeout-minutes: 30
@@ -26,15 +26,18 @@ jobs:
       run:
         working-directory: ./environments/dev
 
+    permissions:
+      contents: read
+
     steps:
 
-      - name: Checkout Code
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: 1.9.5
+          terraform_version: ${{ env.TF_VERSION }}
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -46,16 +49,16 @@ jobs:
       - name: Terraform Init
         run: terraform init -input=false
 
-      - name: Terraform Format
-        run: terraform fmt -recursive
+      - name: Terraform Format Check
+        run: terraform fmt -check -recursive
 
       - name: Terraform Validate
         run: terraform validate
 
       - name: Terraform Plan
-        run: terraform plan -lock-timeout=300s -input=false -out=tfplan
+        run: terraform plan -var-file="terraform.tfvars" \ -input=false -lock-timeout=300s -out=tfplan
 
-      - name: Upload Plan Artifact
+      - name: Upload Terraform Plan
         uses: actions/upload-artifact@v4
         with:
           name: terraform-plan
