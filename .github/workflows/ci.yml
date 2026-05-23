@@ -5,7 +5,21 @@ on:
     branches:
       - main
 
+    paths:
+      - 'environments/**'
+      - 'modules/**'
+
   workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Select Terraform Environment'
+        required: true
+        default: dev
+        type: choice
+        options:
+          - dev
+          - test
+          - prod
 
 env:
   AWS_REGION: us-west-2
@@ -13,23 +27,14 @@ env:
 
 jobs:
   terraform:
-    name: Terraform-${{ matrix.environment }}
+    name: Terraform-${{ github.event.inputs.environment || 'dev' }}
 
     runs-on: self-hosted
 
     timeout-minutes: 30
 
-    strategy:
-      fail-fast: false
-
-      matrix:
-        environment:
-          - dev
-          - test
-          - prod
-
     concurrency:
-      group: terraform-${{ matrix.environment }}
+      group: terraform-${{ github.event.inputs.environment || 'dev' }}
       cancel-in-progress: true
 
     permissions:
@@ -38,7 +43,7 @@ jobs:
     defaults:
       run:
         shell: bash
-        working-directory: ./environments/${{ matrix.environment }}
+        working-directory: ./environments/${{ github.event.inputs.environment || 'dev' }}
 
     steps:
 
@@ -80,6 +85,6 @@ jobs:
       - name: Upload Terraform Plan
         uses: actions/upload-artifact@v4
         with:
-          name: terraform-plan-${{ matrix.environment }}
-          path: environments/${{ matrix.environment }}/tfplan
+          name: terraform-plan-${{ github.event.inputs.environment || 'dev' }}
+          path: environments/${{ github.event.inputs.environment || 'dev' }}/tfplan
           retention-days: 7
