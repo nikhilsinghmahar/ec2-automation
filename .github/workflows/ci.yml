@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: terraform-dev
+  group: terraform-${{ matrix.environment }}
   cancel-in-progress: true
 
 env:
@@ -16,15 +16,26 @@ env:
   TF_VERSION: 1.9.5
 
 jobs:
-  terraform-plan:
-    name: Terraform Plan
+
+  terraform:
+    name: Terraform-${{ matrix.environment }}
+
     runs-on: self-hosted
 
     timeout-minutes: 30
 
+    strategy:
+      fail-fast: false
+
+      matrix:
+        environment:
+          - dev
+          - test
+          - prod
+
     defaults:
       run:
-        working-directory: ./environments/dev
+        working-directory: ./environments/${{ matrix.environment }}
 
     permissions:
       contents: read
@@ -46,6 +57,11 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
+      - name: Verify Environment Files
+        run: |
+          pwd
+          ls -la
+
       - name: Terraform Init
         run: terraform init -input=false
 
@@ -56,11 +72,15 @@ jobs:
         run: terraform validate
 
       - name: Terraform Plan
-        run: terraform plan #-input=false -lock-timeout=300s -out=tfplan
-        #run: terraform plan -var-file="./terraform.tfvars" -input=false -lock-timeout=300s -out=tfplan
+        run: |
+          terraform plan \
+            -var-file="terraform.tfvars" \
+            -input=false \
+            -lock-timeout=300s \
+            -out=tfplan
 
       - name: Upload Terraform Plan
         uses: actions/upload-artifact@v4
         with:
-          name: terraform-plan
-          path: environments/dev/tfplan
+          name: terraform-plan-${{ matrix.environment }}
+          path: environments/${{ matrix.environment }}/tfplan
