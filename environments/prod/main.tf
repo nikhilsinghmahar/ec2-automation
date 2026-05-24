@@ -118,7 +118,7 @@ module "ec2" {
     module.security_group.security_group_id
   ]
   #kms_key_id          = module.kms.kms_key_id
-  kms_key_id = module.kms.kms_key_arn
+  kms_key_id          = module.kms.kms_key_arn
   key_name            = var.key_name
   instance_count      = var.instance_count
   enable_encryption   = var.enable_encryption
