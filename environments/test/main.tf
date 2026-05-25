@@ -1,136 +1,136 @@
+# # module "vpc" {
+
+# #   source               = "../../modules/vpc"
+# #   environment          = var.environment
+# #   vpc_cidr             = var.vpc_cidr
+# #   public_subnet_cidrs  = var.public_subnet_cidrs
+# #   private_subnet_cidrs = var.private_subnet_cidrs
+# #   availability_zones   = var.availability_zones
+# #   tags                 = local.common_tags
+# # }
+
 # module "vpc" {
 
-#   source               = "../../modules/vpc"
-#   environment          = var.environment
-#   vpc_cidr             = var.vpc_cidr
-#   public_subnet_cidrs  = var.public_subnet_cidrs
-#   private_subnet_cidrs = var.private_subnet_cidrs
-#   availability_zones   = var.availability_zones
+#   source               = "terraform-aws-modules/vpc/aws"
+#   version              = "5.8.1"
+#   name                 = "${var.environment}-vpc"
+#   cidr                 = var.vpc_cidr
+#   azs                  = var.availability_zones
+#   public_subnets       = var.public_subnet_cidrs
+#   private_subnets      = var.private_subnet_cidrs
+#   enable_nat_gateway   = true
+#   single_nat_gateway   = true
+#   enable_dns_hostnames = true
+#   enable_dns_support   = true
 #   tags                 = local.common_tags
+
+#   public_subnet_tags = {
+#     Name = "${var.environment}-public-subnet"
+#   }
+
+#   private_subnet_tags = {
+#     Name = "${var.environment}-private-subnet"
+#   }
 # }
 
-module "vpc" {
+# # SECURITY GROUP
 
-  source               = "terraform-aws-modules/vpc/aws"
-  version              = "5.8.1"
-  name                 = "${var.environment}-vpc"
-  cidr                 = var.vpc_cidr
-  azs                  = var.availability_zones
-  public_subnets       = var.public_subnet_cidrs
-  private_subnets      = var.private_subnet_cidrs
-  enable_nat_gateway   = true
-  single_nat_gateway   = true
-  enable_dns_hostnames = true
-  enable_dns_support   = true
-  tags                 = local.common_tags
+# module "security_group" {
 
-  public_subnet_tags = {
-    Name = "${var.environment}-public-subnet"
-  }
+#   source      = "../../modules/security-group"
+#   sg_name     = var.sg_name
+#   description = var.sg_description
+#   # NOW TAKING VPC ID FROM VPC MODULE
+#   vpc_id = module.vpc.vpc_id
 
-  private_subnet_tags = {
-    Name = "${var.environment}-private-subnet"
-  }
-}
+#   ingress_rules = var.ingress_rules
 
-# SECURITY GROUP
+#   tags = local.common_tags
+# }
 
-module "security_group" {
+# # IAM PROFILE
 
-  source      = "../../modules/security-group"
-  sg_name     = var.sg_name
-  description = var.sg_description
-  # NOW TAKING VPC ID FROM VPC MODULE
-  vpc_id = module.vpc.vpc_id
+# module "iam_profile" {
 
-  ingress_rules = var.ingress_rules
+#   source = "../../modules/iam-profile"
 
-  tags = local.common_tags
-}
+#   role_name = var.role_name
 
-# IAM PROFILE
+#   profile_name = var.profile_name
 
-module "iam_profile" {
+#   tags = local.common_tags
+# }
 
-  source = "../../modules/iam-profile"
+# # MONITORING
 
-  role_name = var.role_name
+# module "monitoring" {
 
-  profile_name = var.profile_name
+#   source = "../../modules/monitoring"
 
-  tags = local.common_tags
-}
+#   environment       = var.environment
+#   retention_in_days = var.retention_in_days
 
-# MONITORING
+#   tags = local.common_tags
+# }
 
-module "monitoring" {
+# # S3 MODULE
 
-  source = "../../modules/monitoring"
+# module "s3" {
 
-  environment       = var.environment
-  retention_in_days = var.retention_in_days
+#   source = "../../modules/s3"
 
-  tags = local.common_tags
-}
+#   bucket_name = var.bucket_name
 
-# S3 MODULE
+#   tags = local.common_tags
+# }
 
-module "s3" {
+# #kms module 
+# module "kms" {
 
-  source = "../../modules/s3"
+#   source = "../../modules/kms"
 
-  bucket_name = var.bucket_name
+#   description = "KMS Key for EC2 EBS Encryption"
 
-  tags = local.common_tags
-}
+#   alias_name = "${var.environment}-ebs-key"
 
-#kms module 
-module "kms" {
+#   environment = var.environment
 
-  source = "../../modules/kms"
+#   tags = local.common_tags
+# }
 
-  description = "KMS Key for EC2 EBS Encryption"
+# # EC2 MODULE
 
-  alias_name = "${var.environment}-ebs-key"
+# module "ec2" {
 
-  environment = var.environment
+#   source = "../../modules/ec2-instance"
 
-  tags = local.common_tags
-}
+#   instance_name = var.instance_name
+#   environment   = var.environment
+#   ami_id        = var.ami_id
+#   instance_type = var.instance_type
 
-# EC2 MODULE
+#   # NOW TAKING SUBNET FROM VPC MODULE
+#   subnet_id = module.vpc.private_subnets[0]
 
-module "ec2" {
+#   cloudwatch_log_group_name = module.monitoring.log_group_name
 
-  source = "../../modules/ec2-instance"
+#   security_group_ids = [
+#     module.security_group.security_group_id
+#   ]
+#   #kms_key_id          = module.kms.kms_key_id
+#   kms_key_id          = module.kms.kms_key_arn
+#   key_name            = var.key_name
+#   instance_count      = var.instance_count
+#   enable_encryption   = var.enable_encryption
+#   associate_public_ip = var.associate_public_ip
 
-  instance_name = var.instance_name
-  environment   = var.environment
-  ami_id        = var.ami_id
-  instance_type = var.instance_type
+#   iam_instance_profile = module.iam_profile.instance_profile_name
 
-  # NOW TAKING SUBNET FROM VPC MODULE
-  subnet_id = module.vpc.private_subnets[0]
+#   user_data_file   = var.user_data_file
+#   root_volume_size = var.root_volume_size
+#   volume_type      = var.volume_type
 
-  cloudwatch_log_group_name = module.monitoring.log_group_name
+#   common_tags = local.common_tags
 
-  security_group_ids = [
-    module.security_group.security_group_id
-  ]
-  #kms_key_id          = module.kms.kms_key_id
-  kms_key_id          = module.kms.kms_key_arn
-  key_name            = var.key_name
-  instance_count      = var.instance_count
-  enable_encryption   = var.enable_encryption
-  associate_public_ip = var.associate_public_ip
-
-  iam_instance_profile = module.iam_profile.instance_profile_name
-
-  user_data_file   = var.user_data_file
-  root_volume_size = var.root_volume_size
-  volume_type      = var.volume_type
-
-  common_tags = local.common_tags
-
-  additional_ebs_volumes = var.additional_ebs_volumes
-}
+#   additional_ebs_volumes = var.additional_ebs_volumes
+# }
