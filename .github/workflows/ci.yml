@@ -21,46 +21,72 @@ env:
 jobs:
 
   detect-changes:
-    runs-on: self-hosted
+    name: Detect Changed Environments
+
+    runs-on: ubuntu-latest
 
     outputs:
-      dev: ${{ steps.filter.outputs.dev }}
-      test: ${{ steps.filter.outputs.test }}
-      prod: ${{ steps.filter.outputs.prod }}
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
 
     steps:
 
-      - uses: actions/checkout@v4
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-      - uses: dorny/paths-filter@v3
-        id: filter
+      - name: Detect Changed Files
+        id: changed-files
+        uses: tj-actions/changed-files@v44
         with:
-          filters: |
-            dev:
-              - 'environments/dev/**'
+          files: |
+            environments/**
+            modules/**
 
-            test:
-              - 'environments/test/**'
+      - name: Build Environment Matrix
+        id: set-matrix
+        run: |
 
-            prod:
-              - 'environments/prod/**'
+          ENVIRONMENTS=()
+
+          for file in ${{ steps.changed-files.outputs.all_changed_files }}
+          do
+
+            if [[ $file == environments/dev/* ]]; then
+              ENVIRONMENTS+=("\"dev\"")
+            fi
+
+            if [[ $file == environments/test/* ]]; then
+              ENVIRONMENTS+=("\"test\"")
+            fi
+
+            if [[ $file == environments/prod/* ]]; then
+              ENVIRONMENTS+=("\"prod\"")
+            fi
+
+          done
+
+          UNIQUE_ENVS=$(printf "%s\n" "${ENVIRONMENTS[@]}" | sort -u | paste -sd "," -)
+
+          if [[ -z "$UNIQUE_ENVS" ]]; then
+            UNIQUE_ENVS="\"dev\""
+          fi
+
+          echo "matrix={\"environment\":[${UNIQUE_ENVS}]}" >> $GITHUB_OUTPUT
 
   terraform-plan:
+    name: Terraform-${{ matrix.environment }}
+
     needs: detect-changes
+
+    runs-on: self-hosted
 
     strategy:
       fail-fast: false
 
-      matrix:
-        environment:
-          - dev
-          - test
-          - prod
+      matrix: ${{ fromJson(needs.detect-changes.outputs.matrix) }}
 
-    if: |
-      needs.detect-changes.outputs[matrix.environment] == 'true'
-
-    runs-on: self-hosted
+    concurrency:
+      group: terraform-${{ matrix.environment }}
+      cancel-in-progress: true
 
     environment:
       name: ${{ matrix.environment }}
@@ -72,26 +98,32 @@ jobs:
 
     steps:
 
-      - uses: actions/checkout@v4
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-      - uses: hashicorp/setup-terraform@v3
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
-      - uses: aws-actions/configure-aws-credentials@v4
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Terraform Init
-        run: terraform init -input=false
+        run: |
+          terraform init -input=false
 
-      - name: Terraform Format
-        run: terraform fmt -check -recursive
+      - name: Terraform Format Check
+        run: |
+          terraform fmt -check -recursive
 
       - name: Terraform Validate
-        run: terraform validate
+        run: |
+          terraform validate
 
       - name: Terraform Plan
         run: |
@@ -102,15 +134,15 @@ jobs:
             -no-color \
             -out=tfplan > plan.txt
 
-      - name: Upload Plan Artifact
+      - name: Upload Terraform Plan
         uses: actions/upload-artifact@v4
         with:
-          name: tfplan-${{ matrix.environment }}
+          name: terraform-plan-${{ matrix.environment }}
           path: |
             environments/${{ matrix.environment }}/tfplan
             environments/${{ matrix.environment }}/plan.txt
 
-      - name: Comment Terraform Plan
+      - name: Add PR Comment
         uses: marocchino/sticky-pull-request-comment@v2
         with:
           header: terraform-${{ matrix.environment }}
